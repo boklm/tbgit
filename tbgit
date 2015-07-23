@@ -17,6 +17,7 @@ my $hgdir = "$FindBin::Bin/hg_clones";
 my $mapfile = "$FindBin::Bin/gecko-mapfile";
 my $default_trychooser = 'try: -b d -p linux,linux64,linux64-st-an -u reftest,crashtest,xpcshell,jsreftest,marionette,cppunit,jittests,mochitest-1,mochitest-2,mochitest-3,mochitest-4,mochitest-5,mochitest-bc -t none';
 
+my $exit_branch;
 my %options;
 my %actions = (
     tbgit => {
@@ -51,10 +52,18 @@ my %actions = (
         cmd => \&cmd_list_branches,
         options => [],
     },
+    'rebase' => {
+        cmd => \&cmd_rebase,
+        options => [ 'list', 'yes', 'continue', 'abort', ],
+    },
 );
 
 sub exit_error {
     print STDERR "Error: ", $_[0], "\n";
+    if ($exit_branch && (!git_current_branch()
+            || $exit_branch ne git_current_branch())) {
+        capture_exec('git', 'checkout', $exit_branch);
+    }
     exit (exists $_[1] ? $_[1] : 1);
 }
 
@@ -124,6 +133,7 @@ sub git_current_branch {
 
 sub get_versions {
     my $branch = git_current_branch;
+    exit_error "Cannot parse versions in current branch" unless $branch;
     if ($branch && $branch =~ m/^tor-browser-([^-]+)-([^-]+)-.+/) {
         return ($1, $2);
     }
@@ -136,6 +146,14 @@ sub git_hash {
                                         '--format=%H', "$branch^{commit}");
     chomp $out;
     return $out;
+}
+
+sub git_commit_parents {
+    my ($branch) = @_;
+    my ($out, $err, $success) = capture_exec('git', 'show', '-s',
+                                        '--format=%P', "$branch^{commit}");
+    chomp $out;
+    return split(' ', $out);
 }
 
 sub git_is_ancestor {
@@ -493,6 +511,163 @@ sub cmd_trypush {
             push_to_try($branch, "$ffver/base", $try_branch);
             $nb_push++;
         }
+    }
+}
+
+sub git_autosquash {
+    my ($base) = @_;
+    my $old_git_editor = $ENV{GIT_EDITOR} if $ENV{GIT_EDITOR};
+    $ENV{GIT_EDITOR} = ':';
+    my @res = capture_exec('git', 'rebase', '-i', '--autosquash', $base);
+    if (defined $old_git_editor) {
+        $ENV{GIT_EDITOR} = $old_git_editor;
+    } else {
+        delete $ENV{GIT_EDITOR};
+    }
+    return @res;
+}
+
+sub rebase_abort {
+    capture_exec('git', 'rebase', '--abort') if -d git_dir . '/rebase-merge';
+    capture_exec('git', 'cherry-pick', '--abort')
+                if -f git_dir . '/CHERRY_PICK_HEAD';
+    capture_exec('git', 'merge', '--abort') if -f git_dir . '/MERGE_HEAD';
+    my $rebase_branch = read_file(git_dir . '/tbgit_rebase_branch');
+    my @files = qw(branch commit dst_ffver src_ffver);
+    for my $f (@files) {
+        unlink git_dir . "/tbgit_rebase_$f";
+    }
+    if (ask_yn("Remove branch $rebase_branch ?")) {
+        run_noerr_noout('git', 'checkout', '--detach');
+        run_noerr_noout('git', 'branch', '-D', $rebase_branch);
+    }
+}
+
+sub rebase_continue {
+    my @files = qw(branch commit dst_ffver src_ffver);
+    foreach my $f (@files) {
+        my $file = git_dir . "/tbgit_rebase_$f";
+        exit_error "Can't open $file" unless -f $file;
+    }
+    my $current_branch = read_file(git_dir . '/tbgit_rebase_branch');
+    exit_error "Unexpected branch" unless git_current_branch eq $current_branch;
+    my $commit = read_file(git_dir . '/tbgit_rebase_commit');
+    my $dst_ffver = read_file(git_dir . '/tbgit_rebase_dst_ffver');
+    my $src_ffver = read_file(git_dir . '/tbgit_rebase_src_ffver');
+    exit_error 'You should run git rebase --continue'
+                if -d git_dir . '/rebase-merge';
+    exit_error 'You should run git cherry-pick --continue'
+                if -f git_dir . '/CHERRY_PICK_HEAD';
+    exit_error 'You should run git commit'
+                if -f git_dir . '/MERGE_HEAD';
+    my $new_hash = git_hash('HEAD');
+    print "Marking $new_hash as rebased from $commit\n";
+    git_notes_append('rebase', $commit, "$dst_ffver=$new_hash");
+    for my $f (@files) {
+        unlink git_dir . "/tbgit_rebase_$f";
+    }
+    print "Restarting rebase of $current_branch\n";
+    my ($name) = $current_branch =~ m/\/([^\/]+)$/;
+    run_noerr_noout('git', 'checkout', '--detach');
+    run_noerr_noout('git', 'branch', '-D', $current_branch);
+    rebase_branch($dst_ffver, $src_ffver, $name);
+}
+
+sub pick_commit {
+    my ($commit, $ffver, $src_ffver) = @_;
+    my @r = git_notes_get_option('rebase', $commit, $ffver);
+    if (@r) {
+        return $r[0] if $r[0] eq 'skip';
+        my ($out, $err, $success) = capture_exec('git', 'reset', '--hard', $r[0]);
+        exit_error "Error picking rebased commit $r[0]: $err" unless $success;
+        system('git', 'show', '-s', '--oneline');
+        return $r[0];
+    }
+    my $prev_hash = git_hash('HEAD');
+    my @parents = git_commit_parents($commit);
+    my ($out, $err, $success) = (undef, undef, 1);
+    my $action;
+    my $current_branch = git_current_branch;
+    if (@parents == 1) {
+        $action = 'cherry-picking';
+        ($out, $err, $success) = capture_exec('git', 'cherry-pick', '--ff',
+                                                 '--allow-empty', $commit);
+    } else {
+        $action = 'merging';
+        @r = git_notes_get_option('rebase', $parents[1], $ffver);
+        ($out, $err, $success) = capture_exec('git', 'merge', '--no-edit', $r[0])
+                                   if $r[0] ne 'skip';
+    }
+    if ($success) {
+        $action = 'squashing';
+        ($out, $err, $success) = git_autosquash("$ffver/base");
+    }
+    if (!$success) {
+        write_file(git_dir . '/tbgit_rebase_commit', $commit);
+        write_file(git_dir . '/tbgit_rebase_dst_ffver', $ffver);
+        write_file(git_dir . '/tbgit_rebase_src_ffver', $src_ffver);
+        write_file(git_dir . '/tbgit_rebase_branch', $current_branch);
+        print STDERR "Error $action $commit: $out\n$err\n";
+        exit_error "After fixing the conflict, run tbgit rebase --continue";
+    }
+    my $new_hash = git_hash('HEAD');
+    $new_hash = 'skip' if $prev_hash eq $new_hash;
+    git_notes_append('rebase', $commit, "$ffver=$new_hash");
+    system('git', 'show', '-s', '--oneline');
+    return $new_hash;
+}
+
+sub rebase_branch {
+    if (-f git_dir . '/tbgit_rebase_commit') {
+        exit_error 'Rebase already in progress. You can abort it with '
+                   . 'tbgit rebase --abort.';
+    }
+    my ($dst_ffver, $src_ffver, $name) = @_;
+    my ($dst, $dst_base, $src, $src_base)
+        = ("$dst_ffver/$name", "$dst_ffver/base",
+            "$src_ffver/$name", "$src_ffver/base");
+    my ($out, $err, $success) = capture_exec('git', 'log', '--first-parent',
+                                          '--format=%H', "$src_base..$src");
+    exit_error "Error getting $src_base..$src: $err" unless $success;
+    my @commits = reverse split("\n", $out);
+    foreach my $commit (@commits) {
+        my @parents = git_commit_parents($commit);
+        next if @parents == 1;
+        exit_error "More than 2 parents in unsupported" if @parents > 2;
+        next if git_notes_get_option('rebase', $parents[1], $dst_ffver);
+        print "Can't rebase $src: $parents[1] needs to be rebased first\n";
+        return;
+    }
+    ($out, $err, $success) = capture_exec('git', 'branch', $dst, $dst_base);
+    exit_error "Error creating branch $dst: $err" unless $success;
+    ($out, $err, $success) = capture_exec('git', 'checkout', $dst);
+    exit_error "Error checking out $dst: $err" unless $success;
+    foreach my $commit (@commits) {
+        pick_commit($commit, $dst_ffver, $src_ffver);
+    }
+    capture_exec('git', 'checkout', $exit_branch);
+    print "Finished rebasing $src to $dst\n";
+}
+
+sub cmd_rebase {
+    return rebase_continue if $options{continue};
+    return rebase_abort if $options{abort};
+    cmd_help('rebase') unless @_ == 1;
+    my ($ffver, $tbver) = get_versions;
+    my %dest_branches = map { $_ => 1 } branches_list("heads", $ffver);
+    my @src_branches = branches_list("heads", $_[0]);
+    $exit_branch = git_current_branch;
+    foreach my $branch (@src_branches) {
+        my ($name) = $branch =~ m/^.+\/(.+)/;
+        next if $dest_branches{"$ffver/$name"};
+        if ($options{list}) {
+            print "$name\n";
+            next;
+        }
+        if (!$options{yes} && !ask_yn("Rebase $branch to $ffver/$name ?", 'y')) {
+            next;
+        }
+        rebase_branch($ffver, $_[0], $name);
     }
 }
 
