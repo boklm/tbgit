@@ -41,7 +41,7 @@ my %actions = (
     },
     'try-results' => {
         cmd => \&cmd_tryresults,
-        options => [ 'failed', 'success', ],
+        options => [ 'failed', 'success', 'details', ],
     },
     'try-push' => {
         cmd => \&cmd_trypush,
@@ -434,13 +434,21 @@ sub sort_uniq {
 
 sub cmd_tryresults {
     cmd_help('try-results') unless @_ <= 1;
-    my @branches = @_ ? @_ : branches_list("heads", get_versions());
+    my ($ffver, $tbver) = get_versions;
+    my @branches = @_ ? @_ : branches_list("heads", $ffver, $tbver);
     foreach my $branch (sort @branches) {
+        my $details = '';
+        if ($options{details}) {
+            my ($out, $err, $success) = capture_exec('git', 'log',
+                '--no-merges', '--format=  %h %s', "$ffver/base..$branch");
+            $details = join("\n", map { "  *$_" } split("\n", $out));
+            $details .= "\n";
+        }
         my $trypush = git_notes_get('try-push', $branch);
         if (git_notes_get_option('try-push', $branch, 'notry') && !$options{failed}) {
             next if $options{failed};
             next if $options{success};
-            print "$branch:\n  Will not be submitted\n";
+            print "$branch:\n$details  Will not be submitted\n";
         } elsif (my @pushid = git_notes_get_option('try-push', $branch, 'pushid')) {
             my ($id) = @pushid;
             my $jobs = treeherder_jobs_by_status(treeherder_get_jobs($id));
@@ -450,7 +458,7 @@ sub cmd_tryresults {
             if ($options{success} && join('', keys %$jobs) ne 'success') {
                 next;
             }
-            print "$branch:\n  https://treeherder.mozilla.org/#/jobs?repo=try&revision=$id\n";
+            print "$branch:\n$details  https://treeherder.mozilla.org/#/jobs?repo=try&revision=$id\n";
             foreach my $status (sort keys %$jobs) {
                 next if $status eq 'success';
                 print "  $status: ", join(', ', sort_uniq(@{$jobs->{$status}})), "\n";
@@ -458,7 +466,7 @@ sub cmd_tryresults {
         } else {
             next if $options{failed};
             next if $options{success};
-            print "$branch:\n  Not submitted yet\n";
+            print "$branch:\n$details  Not submitted yet\n";
         }
         print "\n";
     }
