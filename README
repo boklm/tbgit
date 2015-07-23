@@ -1,0 +1,7 @@
+To use tbgit:
+
+$ git clone https://github.com/boklm/tbgit
+$ export PATH="$PATH:$PWD/tbgit"
+$ cd $tor_browser_git_repo
+$ tbgit --help
+
