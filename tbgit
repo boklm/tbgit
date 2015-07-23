@@ -251,12 +251,12 @@ sub hg_clone_init {
     chdir $oldcwd;
 }
 
-sub try_torbrowser_patch {
-    my ($git_branch, $git_base) = @_;
+sub try_patch {
+    my ($name, $git_branch, $git_base) = @_;
     my ($log) = capture_exec('git', 'log', "$git_base..$git_branch");
     my ($diff) = capture_exec('git', 'diff', "$git_base..$git_branch");
     my $file = File::Temp->new();
-    write_file($file, "Tor Browser: $git_branch\n\n$log\n$diff");
+    write_file($file, "$name: $git_branch\n\n$log\n$diff");
     return $file;
 }
 
@@ -267,14 +267,17 @@ sub get_esr_version {
 }
 
 sub push_to_try {
-    my ($git_branch, $git_base) = @_;
+    my ($git_branch, $git_base, $try_branch) = @_;
     my $esr_version = get_esr_version($git_branch);
-    my $tbpatch = try_torbrowser_patch($git_branch, $git_base);
+    my $trypatch = try_patch('Try', $try_branch, $git_base) if $try_branch;
+    my $tbpatch = try_patch('Tor Browser', $git_branch, $git_base);
     my $hg_base = git_to_hg_hash(git_hash($git_base));
     hg_clone_init("mozilla-esr$esr_version");
     my $oldcwd = getcwd;
     chdir "$hgdir/mozilla-esr$esr_version";
     run_noerr_noout('hg', 'update', '-C', $hg_base);
+    run_noerr_noout('hg', 'qimport', '-P', $trypatch->filename, '-n',
+                    'try.patch') if $try_branch;
     run_noerr_noout('hg', 'qimport', '-P', $tbpatch->filename, '-n',
                     'torbrowser.patch');
     run_noerr_noout('hg', 'qnew', '-m', $default_trychooser, 'trychooser');
@@ -486,7 +489,8 @@ sub cmd_trypush {
         }
         exit 0 if $nb_push >= $max_push;
         if ($options{yes} || ask_yn("Push $branch to try?", 'y')) {
-            push_to_try($branch, "$ffver/base");
+            my $try_branch = "$ffver/base.try" if branch_exists("$ffver/base.try");
+            push_to_try($branch, "$ffver/base", $try_branch);
             $nb_push++;
         }
     }
