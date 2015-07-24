@@ -134,7 +134,7 @@ sub git_current_branch {
 sub get_versions {
     my $branch = git_current_branch;
     exit_error "Cannot parse versions in current branch" unless $branch;
-    if ($branch && $branch =~ m/^tor-browser-([^-]+)-([^-]+)-.+/) {
+    if ($branch =~ m/^tor-browser-([^-]+)-([^-]+)-.+/) {
         return ($1, $2);
     }
     exit_error "Cannot parse versions in current branch: $branch";
