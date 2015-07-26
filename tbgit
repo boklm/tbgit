@@ -135,7 +135,13 @@ sub get_versions {
     my $branch = git_current_branch;
     exit_error "Cannot parse versions in current branch" unless $branch;
     if ($branch =~ m/^tor-browser-([^-]+)-([^-]+)-.+/) {
-        return ($1, $2);
+        return (1, $1, $2);
+    }
+    if ($branch =~ m/^([^\/]+)\/[^\/]+$/) {
+        return (undef, $1, undef);
+    }
+    if ($branch =~ m/^([^\/]+)\/([^\/]+)\/[^\/]+$/) {
+        return (undef, $1, $2);
     }
     exit_error "Cannot parse versions in current branch: $branch";
 }
@@ -309,7 +315,8 @@ sub push_to_try {
 
 sub cmd_merge {
     cmd_help('merge') unless @_ == 0;
-    my ($ffver, $tbver) = get_versions;
+    my ($mb, $ffver, $tbver) = get_versions;
+    exit "This command should be run from a merge branch" unless $mb;
     my @branches = branches_list('heads', $ffver, $tbver);
     foreach my $branch (@branches) {
         next if git_is_ancestor($branch, 'HEAD');
@@ -325,7 +332,8 @@ sub cmd_merge {
 sub cmd_pull {
     cmd_help('pull') unless @_ == 1;
     my ($remote) = @_;
-    my ($ffver, $tbver) = get_versions;
+    my ($mb, $ffver, $tbver) = get_versions;
+    exit "This command should be run from a merge branch" unless $mb;
     git_fetch($remote);
     my @local_branches = branches_list("heads", $ffver, $tbver);
     my @remote_branches = branches_list("remotes/$remote", $ffver, $tbver);
@@ -366,7 +374,8 @@ sub cmd_pull {
 sub cmd_push {
     cmd_help('push') unless @_ == 1;
     my ($remote) = @_;
-    my ($ffver, $tbver) = get_versions;
+    my ($mb, $ffver, $tbver) = get_versions;
+    exit "This command should be run from a merge branch" unless $mb;
     git_fetch($remote);
     my @local_branches = branches_list("heads", $ffver, $tbver);
     my @remote_branches = branches_list("remotes/$remote", $ffver, $tbver);
@@ -456,8 +465,9 @@ sub sort_uniq {
 
 sub cmd_tryresults {
     cmd_help('try-results') unless @_ <= 1;
-    my ($ffver, $tbver) = get_versions;
-    my @branches = @_ ? @_ : branches_list("heads", $ffver, $tbver);
+    my ($mb, $ffver, $tbver) = get_versions;
+    my @branches = @_ ? @_ :
+        $mb ? branches_list("heads", $ffver, $tbver) : (git_current_branch);
     foreach my $branch (sort @branches) {
         my $details = '';
         if ($options{details}) {
@@ -495,10 +505,11 @@ sub cmd_tryresults {
 }
 
 sub cmd_trypush {
-    my ($ffver, $tbver) = get_versions;
+    my ($mb, $ffver, $tbver) = get_versions;
     my $max_push = $options{'max-push'} ? $options{'max-push'} : 1;
     my $nb_push = 0;
-    my @branches = branches_list("heads", $ffver, $tbver);
+    my @branches = $mb ? branches_list("heads", $ffver, $tbver)
+                       : (git_current_branch);
     foreach my $branch (sort @branches) {
         next if git_notes_get_option('try-push', $branch, 'pushid');
         next if git_notes_get_option('try-push', $branch, 'notry');
@@ -654,7 +665,8 @@ sub cmd_rebase {
     return rebase_continue if $options{continue};
     return rebase_abort if $options{abort};
     cmd_help('rebase') unless @_ == 1;
-    my ($ffver, $tbver) = get_versions;
+    my ($mb, $ffver, $tbver) = get_versions;
+    exit "This command should be run from a merge branch" unless $mb;
     my %dest_branches = map { $_ => 1 } branches_list("heads", $ffver);
     my @src_branches = branches_list("heads", $_[0]);
     $exit_branch = git_current_branch;
@@ -674,7 +686,7 @@ sub cmd_rebase {
 
 sub cmd_list_branches {
     cmd_help('list-branches') unless @_ == 0;
-    my ($ffver, $tbver) = get_versions;
+    my (undef, $ffver, $tbver) = get_versions;
     my @branches = branches_list("heads", $ffver, $tbver);
     foreach my $branch (sort @branches) {
         next if $branch eq "$ffver/base";

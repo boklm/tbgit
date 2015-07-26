@@ -6,7 +6,9 @@ Push topic branches to Mozilla Try server
   results URL, so that the try-results command can display results.
 
   The firefox and Tor Browser versions are determined from the currently
-  checked out branch.
+  checked out branch. If the checked out branch is a topic branch, only
+  this branch will be pushed. If the checked out branch is a merge branch,
+  all topic branches for the selected versions will be pushed.
 
   If a $ffversion/base.try branch exists, then the changes from this
   branch are added to every push to Try.
