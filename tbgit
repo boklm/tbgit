@@ -413,6 +413,7 @@ sub treeherder_get_jobs {
     exit_error "Cannot get $url" unless $content;
     my $data = decode_json($content);
     my @jobs;
+    return () if !$data->{job_property_names};
     my @prop_names = @{$data->{job_property_names}};
     foreach my $result (@{$data->{results}}) {
         my @res = @$result;
