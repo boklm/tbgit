@@ -511,6 +511,7 @@ sub cmd_trypush {
     my @branches = $mb ? branches_list("heads", $ffver, $tbver)
                        : (git_current_branch);
     foreach my $branch (sort @branches) {
+        next if $branch eq "$ffver/base.try";
         next if git_notes_get_option('try-push', $branch, 'pushid');
         next if git_notes_get_option('try-push', $branch, 'notry');
         if ($options{list}) {
