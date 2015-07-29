@@ -468,6 +468,9 @@ sub cmd_tryresults {
     my ($mb, $ffver, $tbver) = get_versions;
     my @branches = @_ ? @_ :
         $mb ? branches_list("heads", $ffver, $tbver) : (git_current_branch);
+    my %notry = map { $_ => 1, "$ffver/$_" => 1 }
+                git_notes_get_option('try-push', "$ffver/base", 'notry_branch')
+                unless @_;
     foreach my $branch (sort @branches) {
         my $details = '';
         if ($options{details}) {
@@ -477,7 +480,9 @@ sub cmd_tryresults {
             $details .= "\n";
         }
         my $trypush = git_notes_get('try-push', $branch);
-        if (git_notes_get_option('try-push', $branch, 'notry') && !$options{failed}) {
+        if (($branch eq "$ffver/base.try" || $notry{$branch} ||
+                git_notes_get_option('try-push', $branch, 'notry'))
+                && !$options{failed}) {
             next if $options{failed};
             next if $options{success};
             print "$branch:\n$details  Will not be submitted\n";
@@ -510,8 +515,11 @@ sub cmd_trypush {
     my $nb_push = 0;
     my @branches = $mb ? branches_list("heads", $ffver, $tbver)
                        : (git_current_branch);
+    my %notry = map { $_ => 1, "$ffver/$_" => 1 }
+                git_notes_get_option('try-push', "$ffver/base", 'notry_branch');
     foreach my $branch (sort @branches) {
         next if $branch eq "$ffver/base.try";
+        next if $notry{$branch};
         next if git_notes_get_option('try-push', $branch, 'pushid');
         next if git_notes_get_option('try-push', $branch, 'notry');
         if ($options{list}) {

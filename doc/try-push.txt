@@ -10,6 +10,11 @@ Push topic branches to Mozilla Try server
   this branch will be pushed. If the checked out branch is a merge branch,
   all topic branches for the selected versions will be pushed.
 
+  If a branch has a git note containing "notry=1" then it won't be
+  pushed to Try. If the branch "$ffver/base" has a git note containing
+  "notry_branch=$branch_name" then a branch of that name won't be pushed
+  to Try.
+
   If a $ffversion/base.try branch exists, then the changes from this
   branch are added to every push to Try.
 
