@@ -319,6 +319,7 @@ sub cmd_merge {
     exit "This command should be run from a merge branch" unless $mb;
     my @branches = branches_list('heads', $ffver, $tbver);
     foreach my $branch (@branches) {
+        next if $branch eq "$ffver/base.try";
         next if git_is_ancestor($branch, 'HEAD');
         if ($options{list}) {
             print "$branch\n";
