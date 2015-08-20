@@ -540,7 +540,8 @@ sub git_autosquash {
     my ($base) = @_;
     my $old_git_editor = $ENV{GIT_EDITOR} if $ENV{GIT_EDITOR};
     $ENV{GIT_EDITOR} = ':';
-    my @res = capture_exec('git', 'rebase', '-i', '--autosquash', $base);
+    my @res = capture_exec('git', 'rebase', '-i', '--preserve-merges',
+                           '--autosquash', $base);
     if (defined $old_git_editor) {
         $ENV{GIT_EDITOR} = $old_git_editor;
     } else {
@@ -620,7 +621,7 @@ sub pick_commit {
         ($out, $err, $success) = capture_exec('git', 'merge', '--no-edit', $r[0])
                                    if $r[0] ne 'skip';
     }
-    if ($success) {
+    if ($success && $action eq 'cherry-picking') {
         $action = 'squashing';
         ($out, $err, $success) = git_autosquash("$ffver/base");
     }
