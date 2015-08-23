@@ -205,7 +205,8 @@ sub git_fetch {
 }
 
 sub branch_exists {
-    -f git_dir . '/refs/heads/' . $_[0];
+    my %branches = map { $_ => 1 } branches_list('heads');
+    return $branches{$_[0]};
 }
 
 sub branches_list {
@@ -219,6 +220,13 @@ sub branches_list {
         push @branches, $branch;
     };
     find($wanted, $hdir);
+    if (-f git_dir . '/packed-refs') {
+        foreach my $line (read_file(git_dir . '/packed-refs')) {
+            if ($line =~ m/^[^ ]+ refs\/$refdir\/(.+)$/) {
+                push @branches, $1;
+            }
+        }
+    }
     return sort @branches unless $ffver;
     my %b;
     foreach my $branch (@branches) {
