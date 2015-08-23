@@ -626,8 +626,8 @@ sub pick_commit {
     } else {
         $action = 'merging';
         @r = git_notes_get_option('rebase', $parents[1], $ffver);
-        ($out, $err, $success) = capture_exec('git', 'merge', '--no-edit', $r[0])
-                                   if $r[0] ne 'skip';
+        ($out, $err, $success) = capture_exec('git', 'merge', '--no-edit',
+                                        '--log', $r[0]) if $r[0] ne 'skip';
     }
     if ($success && $action eq 'cherry-picking') {
         $action = 'squashing';
