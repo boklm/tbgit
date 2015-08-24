@@ -338,7 +338,7 @@ sub cmd_merge {
             next;
         }
         run_noerr_ask('git', 'merge',
-                      $options{'no-edit'} ? ('--no-edit') : (), $branch);
+                      $options{'no-edit'} ? ('--no-edit') : (), '--log', $branch);
     }
 }
 
