@@ -1,0 +1,37 @@
+tbgit rebase [--list] [--yes] <ffversion>
+tbgit rebase --continue|--abort
+
+Rebase branches on a new firefox release
+
+  This command rebase feature branches on a new firefox version. Before
+  running this command, you should be in the merge branch of the new
+  firefox version and give as argument the old firefox version. The
+  <ffver>/base branch for the new version should also already exist.
+
+  Some branches contain the same commits and this command will try to
+  only rebase them once. To do that, when a commit has been rebased,
+  its new hash is stored using git notes in the the refs/notes/rebase
+  branch. After beeing rebased, commits with a title that starts with
+  "fixup!" are automatically squashed.
+
+  The rebase process can fail require manual changes in two cases:
+
+    * a patch cannot be applied on the new tree
+
+    * a patch with a title starting with "fixup!" cannot be squashed
+
+  In such cases, tbgit will exit and you can fix the issue and run
+  "git cherry-pick --continue" (in case of patch that could not be
+  applied) or "git rebase --continue" (in case of a squashing problem).
+  After fixing the issue with "git cherry-pick" or "git rebase" you can
+  run "tbgit rebase --continue" to record the hash of the rebased commit
+  and restart the process. If you want to cancel the process you can also
+  use "tbgit rebase --abort".
+
+options:
+
+ --yes       assume yes to all questions
+ --list      list the branches that need to be rebased
+ --continue  after fixing a conflict, restart the rebase
+ --abort     abort the rebase process
+
