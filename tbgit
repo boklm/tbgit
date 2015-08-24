@@ -48,6 +48,10 @@ my %actions = (
         cmd => \&cmd_trypush,
         options => [ 'list', 'yes', 'max-push=i', ],
     },
+    'try-config' => {
+        cmd => \&cmd_tryconfig,
+        options => [ 'edit', 'add=s', 'show', 'remove', ],
+    },
     'list-branches' => {
         cmd => \&cmd_list_branches,
         options => [],
@@ -542,6 +546,17 @@ sub cmd_trypush {
             $nb_push++;
         }
     }
+}
+
+sub cmd_tryconfig {
+    cmd_help('try-config') unless keys %options == 1;
+    cmd_help('try-config') if @_ > 1;
+    my @gnotes = qw(git notes --ref try-push);
+    my $rev = $_[0] // 'HEAD';
+    return system(@gnotes, 'show', $rev) == 0 if $options{show};
+    return system(@gnotes, 'edit', $rev) == 0 if $options{edit};
+    return system(@gnotes, 'remove', $rev) == 0 if $options{remove};
+    return system(@gnotes, 'append', $rev, '-m', $options{add});
 }
 
 sub git_autosquash {

@@ -8,5 +8,6 @@ List of commands:
   merge         merge topic branches into a version branch
   try-push      submit topic branches to Mozilla Try server
   try-results   display results from Mozilla Try
+  try-config    set and get Try configuration options
   list-branches list branches and commits
 

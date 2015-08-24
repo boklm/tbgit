@@ -1,0 +1,53 @@
+tbgit try-config --show|--edit|--remove|--add=<m> <commit>
+
+Set or get Try configuration options on a commit
+
+  This command sets or gets options on commits using git-notes stored
+  in the refs/notes/try-push branch.
+
+  The following options are usually set on the tip of a feature branch:
+
+   pushid=<hg_hash>
+
+     This option is automatically set by the try-push command after
+     pushing a branch to Mozilla Try. The hg_hash is the identifier of
+     the push, and is used by the try-results command to display the
+     results and their URLs.
+
+   notry=1
+
+     When a commit should not be pushed to Try, this option should be
+     set, and the try-push command will ignore it. See also the
+     notry_branch option on <ffver>/base.
+
+  The following options are usually set on the <ffver>/base branch:
+
+    hg_hash=<hg_hash>
+
+      This option defines the mercurial commit which corresponds to
+      this commit. It is used when pushing branches to Try.
+
+    notry_branch=<branch_name>
+
+      When you don't want a branch to be pushed to Try, you can set the
+      notry=1 option on its tip commit, but it is lost when a new commit
+      is added to the branch. Or you can set the notry_branch=branch
+      option on the <ffver>/base branch and the try-push command will
+      ignore it.
+
+   Example commands:
+
+     $ tbgit try-config --show 38.2.0esr/base
+     hg_hash=31bad6553933
+
+     notry_branch=enable-browser.ini
+     [...]
+     $ tbgit try-config --add notry_branch=mingw-fixes 38.2.0esr/base
+
+options:
+
+ --show    show configuration for the selected commit
+ --edit    edit the configuration in a text editor
+ --remove  remove all configuration for the selected commit
+ --add=<n> add some configuration on the selected commit
+
