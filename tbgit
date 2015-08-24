@@ -96,7 +96,9 @@ sub cmd_help {
     $cmd = 'help' if @_ > 1;
     $cmd = 'tbgit' if @_ == 0;
     exit_error("Unknown commmand $cmd") unless $actions{$cmd};
-    print read_file "$docdir/$cmd.txt";
+    my $pager = $ENV{PAGER} ? $ENV{PAGER} : 'less -F';
+    open(PAGER, "|$pager");
+    print PAGER read_file "$docdir/$cmd.txt";
     exit 0;
 }
 
