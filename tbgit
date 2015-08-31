@@ -390,7 +390,7 @@ sub cmd_push {
     cmd_help('push') unless @_ == 1;
     my ($remote) = @_;
     my ($mb, $ffver, $tbver) = get_versions;
-    exit "This command should be run from a merge branch" unless $mb;
+    exit_error "This command should be run from a merge branch" unless $mb;
     git_fetch($remote);
     my @local_branches = branches_list("heads", $ffver, $tbver);
     my @remote_branches = branches_list("remotes/$remote", $ffver, $tbver);
