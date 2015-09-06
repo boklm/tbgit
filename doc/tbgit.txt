@@ -6,6 +6,7 @@ List of commands:
   pull          pull topic branches from a remote repository
   push          push topic branches to a remote repository
   merge         merge topic branches into a version branch
+  rebase        rebase branches on a new firefox release
   try-push      submit topic branches to Mozilla Try server
   try-results   display results from Mozilla Try
   try-config    set and get Try configuration options
