@@ -494,7 +494,6 @@ sub cmd_tryresults {
             $details = join("\n", map { "  *$_" } split("\n", $out));
             $details .= "\n";
         }
-        my $trypush = git_notes_get('try-push', $branch);
         if (($branch eq "$ffver/base.try" || $notry{$branch} ||
                 git_notes_get_option('try-push', $branch, 'notry'))
                 && !$options{failed}) {
