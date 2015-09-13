@@ -245,30 +245,16 @@ sub branches_list {
     return sort values %b;
 }
 
-sub wget_mapfile {
-    run_noerr('wget', "-O$mapfile",
-        'https://people.mozilla.org/~pmoore/vcs2vcs/gecko-dev/gecko-mapfile');
-}
-
-sub hg_git_commits_map {
-    my @l = read_file($mapfile);
-    my %r = map { (m/^([^ ]+) ([^ ]+)/) } @l;
-    chomp %r;
-    return \%r;
-}
-
 sub git_to_hg_hash {
     my ($git_hash) = @_;
     if (my @h = git_notes_get_option('try-push', $git_hash, 'hg_hash')) {
         return $h[0];
     }
-    wget_mapfile() unless -f $mapfile;
-    my $map = hg_git_commits_map();
-    return $map->{$git_hash} if $map->{$git_hash};
-    wget_mapfile();
-    $map = hg_git_commits_map();
-    exit_error "Could not find hg commit for $git_hash" unless $map->{$git_hash};
-    return $map->{$git_hash};
+    my $c = get('https://api.pub.build.mozilla.org/mapper/gecko-dev/rev/git/'
+                . $git_hash);
+    exit_error "Could not find hg commit for $git_hash" unless $c;
+    my ($hg_hash) = split(' ', $c);
+    return $hg_hash;
 }
 
 sub hg_clone_init {
