@@ -35,6 +35,12 @@ Set or get Try configuration options on a commit
       option on the <ffver>/base branch and the try-push command will
       ignore it.
 
+    note_${branch}=<note>
+
+      Where ${branch} is the name of a branch, this adds a note to be
+      displayed for this branch by the try-results command. Multiple
+      notes can be added for a branch.
+
    Example commands:
 
      $ tbgit try-config --show 38.2.0esr/base

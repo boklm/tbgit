@@ -494,6 +494,12 @@ sub cmd_tryresults {
             $details = join("\n", map { "  *$_" } split("\n", $out));
             $details .= "\n";
         }
+        my ($bname) = reverse split('/', $branch);
+        my $notes = '';
+        my @notes = git_notes_get_option('try-push', "$ffver/base", "note_$bname");
+        foreach my $note (@notes) {
+            $notes .= "  note: $note\n";
+        }
         if (($branch eq "$ffver/base.try" || $notry{$branch} ||
                 git_notes_get_option('try-push', $branch, 'notry'))
                 && !$options{failed}) {
@@ -509,7 +515,7 @@ sub cmd_tryresults {
             if ($options{success} && join('', keys %$jobs) ne 'success') {
                 next;
             }
-            print "$branch:\n$details  https://treeherder.mozilla.org/#/jobs?repo=try&revision=$id\n";
+            print "$branch:\n$notes$details  https://treeherder.mozilla.org/#/jobs?repo=try&revision=$id\n";
             foreach my $status (sort keys %$jobs) {
                 next if $status eq 'success';
                 print "  $status: ", join(', ', sort_uniq(@{$jobs->{$status}})), "\n";
@@ -517,7 +523,7 @@ sub cmd_tryresults {
         } else {
             next if $options{failed};
             next if $options{success};
-            print "$branch:\n$details  Not submitted yet\n";
+            print "$branch:\n$notes$details  Not submitted yet\n";
         }
         print "\n";
     }
