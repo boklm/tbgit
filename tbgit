@@ -253,7 +253,7 @@ sub git_to_hg_hash {
     my $c = get('https://api.pub.build.mozilla.org/mapper/gecko-dev/rev/git/'
                 . $git_hash);
     exit_error "Could not find hg commit for $git_hash" unless $c;
-    my ($hg_hash) = split(' ', $c);
+    my (undef, $hg_hash) = split(' ', $c);
     return $hg_hash;
 }
 
