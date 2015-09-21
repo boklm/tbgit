@@ -42,7 +42,7 @@ my %actions = (
     },
     'try-results' => {
         cmd => \&cmd_tryresults,
-        options => [ 'failed', 'success', 'details', ],
+        options => [ 'failed', 'success', 'details', 'filter', 'testfiles', ],
     },
     'try-push' => {
         cmd => \&cmd_trypush,
@@ -414,6 +414,47 @@ sub treeherder_get_result_set_id {
     return $data->{results}->[0]->{id};
 }
 
+sub treeherder_get_failed_test_files {
+    my @jobs = @_;
+    my %files;
+    foreach my $job (@jobs) {
+        next if $job->{job_group_symbol} eq 'R-e10s';
+        next if $job->{result} eq 'retry';
+        next if $job->{result} eq 'success';
+        if ($job->{result} ne 'testfailed' && $job->{result} ne 'busted') {
+            $files{"other error: $job->{job_type_name} ($job->{result})"} = 1;
+            next;
+        }
+        my $url = "https://treeherder.mozilla.org/api/project/try/jobs/$job->{id}";
+        my $content = get($url);
+        exit_error "Cannot get $url" unless $content;
+        my $data = decode_json($content);
+        exit_error "Cannot get artifacts from $url" unless $data->{artifacts};
+        foreach my $artifact (@{$data->{artifacts}}) {
+            next unless $artifact->{name} eq 'text_log_summary';
+            $url = "https://treeherder.mozilla.org/api/project/try/artifact/$artifact->{id}";
+            $content = get($url);
+            exit_error "Cannot get $url" unless $content;
+            my $art_data = decode_json($content);
+            exit_error "Cannot get errors from $url"
+                unless $art_data->{blob}{step_data}{all_errors};
+            if (!$art_data->{blob}{step_data}{all_errors}) {
+                $files{"other error: $job->{job_type_name}"} = 1;
+                next;
+            }
+            foreach my $error (@{$art_data->{blob}{step_data}{all_errors}}) {
+                my (undef, $file) = split('\|', $error->{line});
+                if ($file) {
+                    $file =~ s/^\s*//;
+                    $file =~ s/\s$//;
+                    $files{$file} = 1;
+                }
+            }
+        }
+    }
+    return sort keys %files;
+}
+
 sub treeherder_get_jobs {
     my ($hg_hash) = @_;
     my $resultset_id = treeherder_get_result_set_id($hg_hash);
@@ -464,6 +505,31 @@ sub sort_uniq {
     return sort keys %k;
 }
 
+sub filter_testfiles {
+    my ($branch, $ffver, @testfiles) = @_;
+    my %testfiles = map { $_ => 1 } @testfiles;
+    my @shouldfail = git_notes_get_option('try-push', "$ffver/base",
+                                          "shouldfail_$branch");
+    my @ignorefail = git_notes_get_option('try-push', "$ffver/base",
+                                          "ignorefail_$branch");
+    my %nofail = map { $_ => 1 } @shouldfail;
+    foreach my $shouldfail (@shouldfail) {
+        foreach my $testfile (keys %testfiles) {
+            if ($testfile =~ m/^${shouldfail}$/) {
+                delete $nofail{$shouldfail};
+                delete $testfiles{$testfile};
+                last;
+            }
+        }
+    }
+    foreach my $ignorefail (@ignorefail) {
+        foreach my $testfile (keys %testfiles) {
+            delete $testfiles{$testfile} if $testfile =~ m/^${ignorefail}$/;
+        }
+    }
+    return (keys %testfiles, map { "nofail: $_" } keys %nofail);
+}
+
 sub cmd_tryresults {
     cmd_help('try-results') unless @_ <= 1;
     my ($mb, $ffver, $tbver) = get_versions;
@@ -494,17 +560,35 @@ sub cmd_tryresults {
             print "$branch:\n$details  Will not be submitted\n";
         } elsif (my @pushid = git_notes_get_option('try-push', $branch, 'pushid')) {
             my ($id) = @pushid;
-            my $jobs = treeherder_jobs_by_status(treeherder_get_jobs($id));
-            if ($options{failed} && join('', keys %$jobs) eq 'success') {
+            my @all_jobs = treeherder_get_jobs($id);
+            my $jobs = treeherder_jobs_by_status(@all_jobs);
+            my $is_success = join('', keys %$jobs) eq 'success';
+            my @testfiles;
+            if ($options{filter} || $options{testfiles}) {
+                @testfiles = treeherder_get_failed_test_files(@all_jobs);
+                if ($options{filter}) {
+                    @testfiles = filter_testfiles($bname, $ffver, @testfiles);
+                    $is_success = !@testfiles;
+                }
+            }
+            if ($options{failed} && $is_success) {
                 next;
             }
-            if ($options{success} && join('', keys %$jobs) ne 'success') {
+            if ($options{success} && !$is_success) {
                 next;
             }
             print "$branch:\n$notes$details  https://treeherder.mozilla.org/#/jobs?repo=try&revision=$id\n";
-            foreach my $status (sort keys %$jobs) {
-                next if $status eq 'success';
-                print "  $status: ", join(', ', sort_uniq(@{$jobs->{$status}})), "\n";
+            if (!$is_success) {
+                foreach my $status (sort keys %$jobs) {
+                    next if $status eq 'success';
+                    print "  $status: ", join(', ', sort_uniq(@{$jobs->{$status}})), "\n";
+                }
+            }
+            if (@testfiles) {
+                print "  Failed tests:\n";
+                foreach my $testfile (@testfiles) {
+                    print "  - $testfile\n";
+                }
             }
         } else {
             next if $options{failed};

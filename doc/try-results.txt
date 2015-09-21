@@ -13,7 +13,10 @@ Display results from Mozilla Try servers
 
 options:
 
- --success  only show branches with no test/build failure
- --failed   only show branches with test/build failure
- --details  show the list of commits in each branch
+ --success   only show branches with no test/build failure
+ --failed    only show branches with test/build failure
+ --details   show the list of commits in each branch
+ --testfiles show the failed test files list
+ --filter    show the failed test files list and filter results according
+             to rules defined in try-config
 

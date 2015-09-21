@@ -41,6 +41,21 @@ Set or get Try configuration options on a commit
       displayed for this branch by the try-results command. Multiple
       notes can be added for a branch.
 
+    shouldfail_${branch}=<filename_regexp>
+
+      Where ${branch} is the name of a branch, and when running the
+      try-results command with the --filter option, a test matching the
+      <filename_regexp> is expected to fail. If there was no test fail
+      matching the regular expression, this is considered an error.
+      This option is useful for checking that a test is working.
+
+    ignorefail_${branch}=<filename_regexp>
+
+      Where ${branch} is the name of a branch, and when running the
+      try-results command with the --filter option, a test matching the
+      <filename_regexp> is ignored if it fails. This option is useful
+      to hide tests that we expect to fail.
+
    Example commands:
 
      $ tbgit try-config --show 38.2.0esr/base
