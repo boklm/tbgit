@@ -425,14 +425,14 @@ sub treeherder_get_failed_test_files {
             $files{"other error: $job->{job_type_name} ($job->{result})"} = 1;
             next;
         }
-        my $url = "https://treeherder.mozilla.org/api/project/try/jobs/$job->{id}";
+        my $url = "https://treeherder.mozilla.org/api/project/try/jobs/$job->{id}/";
         my $content = get($url);
         exit_error "Cannot get $url" unless $content;
         my $data = decode_json($content);
         exit_error "Cannot get artifacts from $url" unless $data->{artifacts};
         foreach my $artifact (@{$data->{artifacts}}) {
             next unless $artifact->{name} eq 'text_log_summary';
-            $url = "https://treeherder.mozilla.org/api/project/try/artifact/$artifact->{id}";
+            $url = "https://treeherder.mozilla.org/api/project/try/artifact/$artifact->{id}/";
             $content = get($url);
             exit_error "Cannot get $url" unless $content;
             my $art_data = decode_json($content);
