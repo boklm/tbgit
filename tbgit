@@ -15,7 +15,7 @@ use JSON 'decode_json';
 my $docdir = "$FindBin::Bin/doc";
 my $hgdir = "$FindBin::Bin/hg_clones";
 my $mapfile = "$FindBin::Bin/gecko-mapfile";
-my $default_trychooser = 'try: -b d -p linux,linux64,linux64-st-an -u reftest,crashtest,xpcshell,jsreftest,marionette,cppunit,jittests,mochitest-1,mochitest-2,mochitest-3,mochitest-4,mochitest-5,mochitest-bc -t none';
+my $default_trychooser = 'try: -b d -p linux,linux64,linux64-asan,linux64-st-an -u reftest,crashtest,xpcshell,jsreftest,marionette,cppunit,jittests,mochitest-1,mochitest-2,mochitest-3,mochitest-4,mochitest-5,mochitest-bc -t none';
 
 my $exit_branch;
 my %options;
